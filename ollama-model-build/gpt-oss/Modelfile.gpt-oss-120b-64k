@@ -1,0 +1,5 @@
+FROM gpt-oss:120b
+
+PARAMETER num_ctx 65536
+PARAMETER num_gpu 0
+

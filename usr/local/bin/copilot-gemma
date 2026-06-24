@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -e
+
+docker run --rm -it \
+  --network host \
+  -e COPILOT_PROVIDER_BASE_URL=http://localhost:11434/v1 \
+  -e COPILOT_PROVIDER_TYPE=openai \
+  -e COPILOT_MODEL=gemma4:26b-128k-copilot \
+  -e COPILOT_OFFLINE=true \
+  -e COPILOT_HOME=/root/.copilot \
+  -e COPILOT_PROVIDER_API_KEY=ollama \
+  -v "$PWD:/workspace" \
+  -v copilot-cli-config:/root/.copilot \
+  github-copilot-cli "$@"
