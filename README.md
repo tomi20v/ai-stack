@@ -32,9 +32,9 @@ Ollama runs directly on the host for maximum performance and accessibility.
 - **Model Storage:** `/usr/share/ollama/.ollama`
 - **Key Models:**
   - `qwen2.5-coder:7b` (Baseline, currently testing tool-use compatibility)
-  - Custom Gemma 4 variants (see `ollama-model-build/`)
+  - Custom Gemma 4 variants (see `ollama-models/`)
 
-### Model Deployment (`ollama-model-build/`)
+### Model Deployment (`ollama-models/`)
 Custom `Modelfiles` are used to optimize models for specific roles:
 - **Gemma 4 Variants:** Optimized with large context windows (up to 128k) and system prompts tuned for tool-use protocols (e.g., GitHub Copilot CLI).
 - **GPT-OSS Variants:** Large parameter models configured for diverse reasoning tasks.
@@ -51,7 +51,6 @@ Claude Code runs within a specialized, lightweight Docker container to ensure en
 
 **The Global Launcher (`/usr/local/bin/claude`):**
 A wrapper script that handles network configuration (host networking), environment variables for Ollama API connectivity, and volume mounting.
-
 ```bash
 #!/usr/bin/env bash
 # Example of the launcher logic:
@@ -71,10 +70,10 @@ docker run --rm -it \
     docker build -f ./claude/Dockerfile.claude -t claude-code .
     ```
 2.  **Build & Run Custom Models:**
-    Refer to `ollama-model-build/` for specific `ollama create` commands.
+    Refer to `ollama-models/` for specific `ollama create` commands.
 3.  **Run Agent:**
     Navigate to any project directory and run `claude`.
 
 ## ⚠️ Known Issues & Maintenance
-- **Tool Use Compatibility:** Some smaller models (like `qwen2.5-coder:7b`) may emit raw JSON instead of following the Claude Code tool-calling protocol. Continuous testing of larger/custom variants is ongoing.
+- **Tool Use Compatibility:** Some smaller models (like `qwen2.5-coder:7b`) may emit raw JSON instead of following the Claude Code tool‑calling protocol. Continuous testing of larger/custom variants is ongoing.
 - **Container Updates:** Ensure Docker GPU passthrough is verified after any NVIDIA driver updates via `nvidia-smi` within a container.
