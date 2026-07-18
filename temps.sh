@@ -1,6 +1,11 @@
 #!/bin/bash
 
+# Initial clear of the screen
 clear
+
+# Print the Big Header starting from line 6 to avoid being overwritten by the Ollama area
+# We use tput cup 5 0 to ensure it starts after the reserved 5 rows.
+tput cup 5 0
 echo "=========================================================================================="
 echo "                            Full Hardware & Fan Monitor (5s)                              "
 echo "=========================================================================================="
@@ -8,20 +13,21 @@ echo "Press [CTRL+C] to exit."
 echo ""
 
 while true; do
+    # 1. Hardware Metrics (Appending to scrollback)
     TIMESTAMP=$(date "+%H:%M:%S")
 
-    # 1. CPU Temperature
+    # CPU Temperature
     CPU_TEMP=$(sensors 2>/dev/null | awk '/(Package id 0|Tctl|CPU Temp)/ {print $2}' | head -n 1)
 
-    # 2. Motherboard System Temp
+    # Motherboard System Temp
     MOBO_TEMP=$(sensors 2>/dev/null | awk '/(Sys Temp|System|MB Temp|temp1)/ {print $2}' | head -n 1)
     [ -z "$MOBO_TEMP" ] && MOBO_TEMP="N/A"
 
-    # 3. Fan Speeds (RPM)
+    # Fan Speeds (RPM)
     FAN_SPEEDS=$(sensors 2>/dev/null | grep -E 'fan[0-9]|CPU Fan|Sys Fan' | awk '{print $1 " " $2 " " $3}' | tr '\n' '  ')
-    [ -z "$FAN_SPEEDS" ] && FAN_SPEEDS="No Fan Sensors Detected"
+    [ -z "$FAN_SPEEDS" ] && FAN_SPEEDS="N/A"
 
-    # 4. GPU Metrics via nvidia-smi
+    # GPU Metrics via nvidia-smi
     if command -v nvidia-smi &> /dev/null; then
         GPU_DATA=$(nvidia-smi --query-gpu=temperature.gpu,fan.speed,power.draw --format=csv,noheader,nounits 2>/dev/null)
         IFS=',' read -r GPU_TEMP GPU_FAN GPU_PWR <<< "$GPU_DATA"
@@ -30,19 +36,22 @@ while true; do
         GPU_STR="N/A"
     fi
 
-    # Formatted Terminal Output
-    printf "[%s]\n" "$TIMESTAMP"
-    printf "  ��� CPU: %-8s | GPU: %s\n" "$CPU_TEMP" "$GPU_STR"
-    printf "  ��� Mobo Temp: %-4s\n" "$MOBO_TEMP"
-    printf "  ��� Fans: %s\n\n" "$FAN_SPEEDS"
+    # Print the hardware metric line to the bottom of the screen (appending to scrollback)
+    printf "[%s] CPU: %-8s | GPU: %s | Mobo: %-4s | Fans: %s\n" "$TIMESTAMP" "$CPU_TEMP" "$GPU_STR" "$MOBO_TEMP" "$FAN_SPEEDS"
 
-    # 5. Ollama Processes
+    # 2. Update Ollama Area (Fixed window: lines 1-5)
+    tput sc               # Save current cursor position in the scrolling log
+    tput cup 0 0          # Jump to the very top of the terminal
+
+    # Clear lines 1 through 5 specifically
+    printf "\033[1;1H\033[5;1J"
+
     if command -v ollama &> /dev/null; then
-        echo "--- Ollama Processes ---"
-        ollama ps
-        echo "------------------------"
-        echo ""
+        ollama ps | head -n 5
+    else
+        echo "Ollama not found"
     fi
+    tput rc               # Restore cursor back to the scrolling log position
 
     sleep 5
 done
