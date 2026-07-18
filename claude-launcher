@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+set -e
+
+# Path to store last used model relative to this script's directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LAST_MODEL_FILE="$SCRIPT_DIR/.last_model"
+
+# Function to get available claude models from ollama
+get_ollama_models() {
+  if ! command -v ollama > /dev/null; then
+    echo "Error: ollama is not installed or not in PATH." >&2
+    exit 1
+  fi
+  mapfile -t models < <(ollama ls | grep claude | awk '{print $1}')
+}
+
+# Load last used model if exists
+last_model=""
+if [[ -f "$LAST_MODEL_FILE" ]]; then
+  read -r last_model < "$LAST_MODEL_FILE"
+fi
+
+# Get current available models
+get_ollama_models
+
+if [[ ${#models[@]} -eq 0 ]]; then
+  echo "No claude models found via ollama." >&2
+  exit 1
+fi
+
+# Prepare selection list: default first, then models
+options=("default")
+for m in "${models[@]}"; do
+  options+=("$m")
+done
+
+# Function to prompt user for model selection
+select_model() {
+  local choice=""
+  if command -v fzf > /dev/null; then
+    # Use fzf for visual selection
+    choice=$(printf '%s\n' "${options[@]}" | fzf --prompt='Select claude model: ')
+    if [[ "$choice" == "default" ]]; then
+      if [[ -z "$last_model" ]]; then
+        echo "No previous model found. Using hardcoded default: oss20b-128k-claude:latest"
+        choice="oss20b-128k-claude:latest"
+      else
+        choice="$last_model"
+      fi
+    fi
+  else
+    # Fzf not available, fallback to text prompt
+    echo "fzf is not available. For best experience install fzf (e.g., apt install fzf)."
+    echo "Available claude models:"
+    for m in "${models[@]}"; do
+      echo "  $m"
+    done
+    read -rp "Enter model name (or press Enter for default): " choice
+    if [[ -z "$choice" ]]; then
+      if [[ -z "$last_model" ]]; then
+        echo "No previous model found. Using hardcoded default: oss20b-128k-claude:latest"
+        choice="oss20b-128k-claude:latest"
+      else
+        choice="$last_model"
+      fi
+    fi
+  fi
+
+  # Validate chosen model exists in list or is the hardcoded default
+  if [[ "$choice" != "oss20b-128k-claude:latest" && ! "${models[*]}" =~ $choice ]]; then
+    echo "Error: selected model '$choice' not found among available claude models." >&2
+    exit 1
+  fi
+
+  # Save chosen as last used
+  echo "$choice" > "$LAST_MODEL_FILE"
+
+  # Export for later use
+  SELECTED_MODEL="$choice"
+}
+
+# Run selection
+select_model
+
+# Set environment variables for Docker run
+export ANTHROPIC_BASE_URL="http://localhost:11434"
+export ANTHROPIC_AUTH_TOKEN=ollama
+export ANTHROPIC_API_KEY=""
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="$SELECTED_MODEL"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="$SELECTED_MODEL"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="$SELECTED_MODEL"
+
+# Run the claude-code container with passed arguments
+
+docker run --rm -it \
+  --network host \
+  -e ANTHROPIC_BASE_URL=$ANTHROPIC_BASE_URL \
+  -e ANTHROPIC_AUTH_TOKEN=$ANTHROPIC_AUTH_TOKEN \
+  -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  -e ANTHROPIC_DEFAULT_HAIKU_MODEL=$ANTHROPIC_DEFAULT_HAIKU_MODEL \
+  -e ANTHROPIC_DEFAULT_SONNET_MODEL=$ANTHROPIC_DEFAULT_SONNET_MODEL \
+  -e ANTHROPIC_DEFAULT_OPUS_MODEL=$ANTHROPIC_DEFAULT_OPUS_MODEL \
+  -v "$PWD:/workspace" \
+  -v claude-code-config:/root/.claude \
+  claude-code "$@"
