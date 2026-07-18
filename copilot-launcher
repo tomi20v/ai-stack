@@ -1,86 +1,84 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-# Function to get available copilot models from ollama
+USER_ID="$(id -u)"
+GROUP_ID="$(id -g)"
+PROJECT_DIR="$(pwd)"
+
 get_ollama_models() {
-  if ! command -v ollama > /dev/null; then
+  if ! command -v ollama >/dev/null 2>&1; then
     echo "Error: ollama is not installed or not in PATH." >&2
     exit 1
   fi
-  mapfile -t models < <(ollama ls | grep copilot | awk '{print $1}' | sort)
+
+  mapfile -t models < <(
+    ollama list |
+      awk 'NR > 1 && tolower($1) ~ /copilot/ {print $1}' |
+      sort -u
+  )
 }
 
-# Get current available models
-get_ollama_models
-
-if [[ ${#models[@]} -eq 0 ]]; then
-  echo "No copilot models found via ollama." >&2
-  exit 1
-fi
-
-# Prepare selection list
-options=("${models[@]}")
-
-# Function to prompt user for model selection
 select_model() {
   local choice=""
-  if command -v fzf > /dev/null; then
-    # Use fzf for visual selection
-    choice=$(printf '%s\n' "${options[@]}" | fzf --prompt='Select copilot model: ')
+
+  if command -v fzf >/dev/null 2>&1; then
+    choice="$(
+      printf '%s\n' "${models[@]}" |
+        fzf --prompt='Select Copilot model: '
+    )"
   else
-    # Fzf not available, fallback to text prompt
-    echo "fzf is not available. For best experience install fzf (e.g., apt install fzf)."
-    echo "Available copilot models:"
-    for m in "${models[@]}"; do
-      echo "  $m"
-    done
+    echo "Available Copilot models:"
+    printf '  %s\n' "${models[@]}"
     read -rp "Enter model name: " choice
   fi
 
   if [[ -z "$choice" ]]; then
-    echo "Error: No model selected." >&2
+    echo "Error: no model selected." >&2
     exit 1
   fi
 
-  # Validate chosen model exists in list
-  local found=false
-  for m in "${models[@]}"; do
-    if [[ "$m" == "$choice" ]]; then
-      found=true
-      break
-    fi
-  done
-
-  if [[ "$found" = false ]]; then
-    echo "Error: selected model '$choice' not found among available copilot models." >&2
+  if ! printf '%s\n' "${models[@]}" | grep -Fxq -- "$choice"; then
+    echo "Error: '$choice' is not among the available Copilot models." >&2
     exit 1
   fi
 
-  # Export for later use
   SELECTED_MODEL="$choice"
 }
 
-# Run selection
+get_ollama_models
+
+if [[ ${#models[@]} -eq 0 ]]; then
+  echo "No Ollama models containing 'copilot' were found." >&2
+  exit 1
+fi
+
 select_model
 
-# Set environment variables for Docker run
-export COPILOT_PROVIDER_BASE_URL="http://localhost:11434/v1"
-export COPILOT_PROVIDER_TYPE="openai"
-export COPILOT_MODEL="$SELECTED_MODEL"
-export COPILOT_OFFLINE="true"
-export COPILOT_HOME="/root/.copilot"
-export COPILOT_PROVIDER_API_KEY="ollama"
+# Project-specific persistent Copilot data.
+mkdir -p \
+  "${PROJECT_DIR}/.copilot/.cache" \
+  "${PROJECT_DIR}/.copilot/.config"
 
-# Run the copilot-cli container with passed arguments
+if [[ ! -w "${PROJECT_DIR}/.copilot" ]]; then
+  echo "Error: ${PROJECT_DIR}/.copilot is not writable by the current user." >&2
+  echo "Fix it with:" >&2
+  echo "  sudo chown -R ${USER_ID}:${GROUP_ID} '${PROJECT_DIR}/.copilot'" >&2
+  exit 1
+fi
 
 docker run --rm -it \
+  --user "${USER_ID}:${GROUP_ID}" \
   --network host \
-  -e COPILOT_PROVIDER_BASE_URL=$COPILOT_PROVIDER_BASE_URL \
-  -e COPILOT_PROVIDER_TYPE=$COPILOT_PROVIDER_TYPE \
-  -e COPILOT_MODEL=$COPILOT_MODEL \
-  -e COPILOT_OFFLINE=$COPILOT_OFFLINE \
-  -e COPILOT_HOME=$COPILOT_HOME \
-  -e COPILOT_PROVIDER_API_KEY=$COPILOT_PROVIDER_API_KEY \
-  -v "$PWD:/workspace" \
-  -v copilot-cli-config:/root/.copilot \
+  --workdir /workspace \
+  --env HOME=/workspace \
+  --env COPILOT_HOME=/workspace/.copilot \
+  --env XDG_CACHE_HOME=/workspace/.copilot/.cache \
+  --env XDG_CONFIG_HOME=/workspace/.copilot/.config \
+  --env COPILOT_PROVIDER_BASE_URL=http://localhost:11434/v1 \
+  --env COPILOT_PROVIDER_TYPE=openai \
+  --env COPILOT_MODEL="${SELECTED_MODEL}" \
+  --env COPILOT_OFFLINE=true \
+  --env COPILOT_PROVIDER_API_KEY=ollama \
+  --mount "type=bind,source=${PROJECT_DIR},target=/workspace" \
   github-copilot-cli "$@"
+

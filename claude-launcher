@@ -1,86 +1,77 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-# Function to get available claude models from ollama
+USER_ID="$(id -u)"
+GROUP_ID="$(id -g)"
+PROJECT_DIR="$(pwd)"
+
 get_ollama_models() {
-  if ! command -v ollama > /dev/null; then
+  if ! command -v ollama >/dev/null 2>&1; then
     echo "Error: ollama is not installed or not in PATH." >&2
     exit 1
   fi
-  mapfile -t models < <(ollama ls | grep claude | awk '{print $1}')
+
+  mapfile -t models < <(
+    ollama list |
+      awk 'NR > 1 && tolower($1) ~ /claude/ {print $1}' |
+      sort -u
+  )
 }
 
-# Get current available models
-get_ollama_models
-
-if [[ ${#models[@]} -eq 0 ]]; then
-  echo "No claude models found via ollama." >&2
-  exit 1
-fi
-
-# Prepare selection list
-options=("${models[@]}")
-
-# Function to prompt user for model selection
 select_model() {
   local choice=""
-  if command -v fzf > /dev/null; then
-    # Use fzf for visual selection
-    choice=$(printf '%s\n' "${options[@]}" | fzf --prompt='Select claude model: ')
+
+  if command -v fzf >/dev/null 2>&1; then
+    choice="$(
+      printf '%s\n' "${models[@]}" |
+        fzf --prompt='Select Claude model: '
+    )"
   else
-    # Fzf not available, fallback to text prompt
-    echo "fzf is not available. For best experience install fzf (e.g., apt install fzf)."
-    echo "Available claude models:"
-    for m in "${models[@]}"; do
-      echo "  $m"
-    done
+    echo "Available Claude models:"
+    printf '  %s\n' "${models[@]}"
     read -rp "Enter model name: " choice
   fi
 
   if [[ -z "$choice" ]]; then
-    echo "Error: No model selected." >&2
+    echo "Error: no model selected." >&2
     exit 1
   fi
 
-  # Validate chosen model exists in list
-  local found=false
-  for m in "${models[@]}"; do
-    if [[ "$m" == "$choice" ]]; then
-      found=true
-      break
-    fi
-  done
-
-  if [[ "$found" = false ]]; then
-    echo "Error: selected model '$choice' not found among available claude models." >&2
+  if ! printf '%s\n' "${models[@]}" | grep -Fxq -- "$choice"; then
+    echo "Error: '$choice' is not among the available Claude models." >&2
     exit 1
   fi
 
-  # Export for later use
   SELECTED_MODEL="$choice"
 }
 
-# Run selection
+get_ollama_models
+
+if [[ ${#models[@]} -eq 0 ]]; then
+  echo "No Ollama models containing 'claude' were found." >&2
+  exit 1
+fi
+
 select_model
 
-# Set environment variables for Docker run
-export ANTHROPIC_BASE_URL="http://localhost:11434"
-export ANTHROPIC_AUTH_TOKEN=ollama
-export ANTHROPIC_API_KEY=""
-export ANTHROPIC_DEFAULT_HAIKU_MODEL="$SELECTED_MODEL"
-export ANTHROPIC_DEFAULT_SONNET_MODEL="$SELECTED_MODEL"
-export ANTHROPIC_DEFAULT_OPUS_MODEL="$SELECTED_MODEL"
+mkdir -p "${PROJECT_DIR}/.claude"
 
-# Run the claude-code container with passed arguments
+if [[ ! -w "${PROJECT_DIR}/.claude" ]]; then
+  echo "Error: ${PROJECT_DIR}/.claude is not writable by the current user." >&2
+  exit 1
+fi
 
 docker run --rm -it \
+  --user "${USER_ID}:${GROUP_ID}" \
   --network host \
-  -e ANTHROPIC_BASE_URL=$ANTHROPIC_BASE_URL \
-  -e ANTHROPIC_AUTH_TOKEN=$ANTHROPIC_AUTH_TOKEN \
-  -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-  -e ANTHROPIC_DEFAULT_HAIKU_MODEL=$ANTHROPIC_DEFAULT_HAIKU_MODEL \
-  -e ANTHROPIC_DEFAULT_SONNET_MODEL=$ANTHROPIC_DEFAULT_SONNET_MODEL \
-  -e ANTHROPIC_DEFAULT_OPUS_MODEL=$ANTHROPIC_DEFAULT_OPUS_MODEL \
-  -v "$PWD:/workspace" \
-  -v claude-code-config:/root/.claude \
+  --workdir /workspace \
+  --env HOME=/workspace \
+  --env ANTHROPIC_BASE_URL=http://localhost:11434 \
+  --env ANTHROPIC_AUTH_TOKEN=ollama \
+  --env ANTHROPIC_API_KEY="" \
+  --env ANTHROPIC_DEFAULT_HAIKU_MODEL="${SELECTED_MODEL}" \
+  --env ANTHROPIC_DEFAULT_SONNET_MODEL="${SELECTED_MODEL}" \
+  --env ANTHROPIC_DEFAULT_OPUS_MODEL="${SELECTED_MODEL}" \
+  --mount "type=bind,source=${PROJECT_DIR},target=/workspace" \
   claude-code "$@"
+
