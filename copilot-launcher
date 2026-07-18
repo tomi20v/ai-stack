@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-# Path to store last used model relative to this script's directory
-SCRIPT_DIR="$(cd "$(dirname "${BASSERT_SOURCE[0]}")" && pwd)"
-LAST_MODEL_FILE="$SCRIPT_DIR/.last_model"
-# Let's use a more robust way.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LAST_MODEL_FILE="$SCRIPT_DIR/.last_model"
-
 # Function to get available copilot models from ollama
 get_ollama_models() {
   if ! command -v ollama > /dev/null; then
@@ -17,12 +10,6 @@ get_ollama_models() {
   mapfile -t models < <(ollama ls | grep copilot | awk '{print $1}' | sort)
 }
 
-# Load last used model if exists
-last_model=""
-if [[ -f "$LAST_MODEL_FILE" ]]; then
-  read -r last_model < "$LAST_MODEL_FILE"
-fi
-
 # Get current available models
 get_ollama_models
 
@@ -31,11 +18,8 @@ if [[ ${#models[@]} -eq 0 ]]; then
   exit 1
 fi
 
-# Prepare selection list: default first, then models
-options=("default")
-for m in "${models[@]}"; do
-  options+=("$m")
-done
+# Prepare selection list
+options=("${models[@]}")
 
 # Function to prompt user for model selection
 select_model() {
@@ -43,14 +27,6 @@ select_model() {
   if command -v fzf > /dev/null; then
     # Use fzf for visual selection
     choice=$(printf '%s\n' "${options[@]}" | fzf --prompt='Select copilot model: ')
-    if [[ "$choice" == "default" ]]; then
-      if [[ -z "$last_model" ]]; then
-        echo "No previous model found. Using hardcoded default: gemma4:26b-128k-copilot"
-        choice="gemma4:26b-128k-copilot"
-      else
-        choice="$last_model"
-      fi
-    fi
   else
     # Fzf not available, fallback to text prompt
     echo "fzf is not available. For best experience install fzf (e.g., apt install fzf)."
@@ -58,27 +34,27 @@ select_model() {
     for m in "${models[@]}"; do
       echo "  $m"
     done
-    read -rp "Enter model name (or press Enter for default): " choice
-    if [[ -z "$choice" ]]; then
-      if [[ -z "$last_model" ]]; then
-        echo "No previous model found. Using hardcoded default: gemma4:26b-128k-copilot"
-        choice="gemma4:26b-128k-copilot"
-      else
-        choice="$last_model"
-      fi
-    fi
+    read -rp "Enter model name: " choice
   fi
 
-  # Validate chosen model exists in list or is the hard\.hardcoded default
-  # Note: The check against models array might fail if choice is the hardcoded default but not in ollama ls.
-  # But we should at least check if it's in the list OR matches our fallback.
-  if [[ "$choice" != "gemma4:26b-128k-copilot" && ! "${models[*]}" =~ $choice ]]; then
-    echo "Error: selected model '$choice' not found among available copilot models." >&2
+  if [[ -z "$choice" ]]; then
+    echo "Error: No model selected." >&2
     exit 1
   fi
 
-  # Save chosen as last used
-  echo "$choice" > "$LAST_MODEL_FILE"
+  # Validate chosen model exists in list
+  local found=false
+  for m in "${models[@]}"; do
+    if [[ "$m" == "$choice" ]]; then
+      found=true
+      break
+    fi
+  done
+
+  if [[ "$found" = false ]]; then
+    echo "Error: selected model '$choice' not found among available copilot models." >&2
+    exit 1
+  fi
 
   # Export for later use
   SELECTED_MODEL="$choice"
@@ -104,7 +80,7 @@ docker run --rm -it \
   -e COPILOT_MODEL=$COPILOT_MODEL \
   -e COPILOT_OFFLINE=$COPILOT_OFFLINE \
   -e COPILOT_HOME=$COPILOT_HOME \
-  -e COPILOP_PROVIDER_API_KEY=$COPILOP_PROVIDER_API_KEY \
+  -e COPILOT_PROVIDER_API_KEY=$COPILOT_PROVIDER_API_KEY \
   -v "$PWD:/workspace" \
   -v copilot-cli-config:/root/.copilot \
   github-copilot-cli "$@"

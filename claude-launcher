@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-# Path to store last used model relative to this script's directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LAST_MODEL_FILE="$SCRIPT_DIR/.last_model"
-
 # Function to get available claude models from ollama
 get_ollama_models() {
   if ! command -v ollama > /dev/null; then
@@ -14,12 +10,6 @@ get_ollama_models() {
   mapfile -t models < <(ollama ls | grep claude | awk '{print $1}')
 }
 
-# Load last used model if exists
-last_model=""
-if [[ -f "$LAST_MODEL_FILE" ]]; then
-  read -r last_model < "$LAST_MODEL_FILE"
-fi
-
 # Get current available models
 get_ollama_models
 
@@ -28,11 +18,8 @@ if [[ ${#models[@]} -eq 0 ]]; then
   exit 1
 fi
 
-# Prepare selection list: default first, then models
-options=("default")
-for m in "${models[@]}"; do
-  options+=("$m")
-done
+# Prepare selection list
+options=("${models[@]}")
 
 # Function to prompt user for model selection
 select_model() {
@@ -40,14 +27,6 @@ select_model() {
   if command -v fzf > /dev/null; then
     # Use fzf for visual selection
     choice=$(printf '%s\n' "${options[@]}" | fzf --prompt='Select claude model: ')
-    if [[ "$choice" == "default" ]]; then
-      if [[ -z "$last_model" ]]; then
-        echo "No previous model found. Using hardcoded default: oss20b-128k-claude:latest"
-        choice="oss20b-128k-claude:latest"
-      else
-        choice="$last_model"
-      fi
-    fi
   else
     # Fzf not available, fallback to text prompt
     echo "fzf is not available. For best experience install fzf (e.g., apt install fzf)."
@@ -55,25 +34,27 @@ select_model() {
     for m in "${models[@]}"; do
       echo "  $m"
     done
-    read -rp "Enter model name (or press Enter for default): " choice
-    if [[ -z "$choice" ]]; then
-      if [[ -z "$last_model" ]]; then
-        echo "No previous model found. Using hardcoded default: oss20b-128k-claude:latest"
-        choice="oss20b-128k-claude:latest"
-      else
-        choice="$last_model"
-      fi
-    fi
+    read -rp "Enter model name: " choice
   fi
 
-  # Validate chosen model exists in list or is the hardcoded default
-  if [[ "$choice" != "oss20b-128k-claude:latest" && ! "${models[*]}" =~ $choice ]]; then
-    echo "Error: selected model '$choice' not found among available claude models." >&2
+  if [[ -z "$choice" ]]; then
+    echo "Error: No model selected." >&2
     exit 1
   fi
 
-  # Save chosen as last used
-  echo "$choice" > "$LAST_MODEL_FILE"
+  # Validate chosen model exists in list
+  local found=false
+  for m in "${models[@]}"; do
+    if [[ "$m" == "$choice" ]]; then
+      found=true
+      break
+    fi
+  done
+
+  if [[ "$found" = false ]]; then
+    echo "Error: selected model '$choice' not found among available claude models." >&2
+    exit 1
+  fi
 
   # Export for later use
   SELECTED_MODEL="$choice"
