@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_DIR="$(pwd)"
+
+get_ollama_models() {
+  if ! command -v ollama >/dev/null 2>&1; then
+    echo "Error: ollama is not installed or not in PATH." >&2
+    exit 1
+  fi
+
+  mapfile -t models < <(
+    ollama list |
+      awk 'NR > 1 && tolower($1) ~ /copilot/ {print $1}' |
+      sort -u
+  )
+}
+
+select_model() {
+  local choice=""
+
+  if command -v fzf >/dev/null 2>&1; then
+    choice="$(
+      printf '%s\n' "${models[@]}" |
+        fzf --prompt='Select Copilot model: '
+    )"
+  else
+    echo "Available Copilot models:"
+    printf '  %s\n' "${models[@]}"
+    read -rp "Enter model name: " choice
+  fi
+
+  if [[ -z "$choice" ]]; then
+    echo "Error: no model selected." >&2
+    exit 1
+  fi
+
+  if ! printf '%s\n' "${models[@]}" | grep -Fxq -- "$choice"; then
+    echo "Error: '$choice' is not among the available Copilot models." >&2
+    exit 1
+  fi
+
+  SELECTED_MODEL="$choice"
+}
+
+get_ollama_models
+
+if [[ ${#models[@]} -eq 0 ]]; then
+  echo "No Ollama models containing 'copilot' were found." >&2
+  exit 1
+fi
+
+select_model
+
+# Ensure github-copilot-cli is available on the host
+if ! command -v copilot >/dev/null 2>&1; then
+  echo "Error: copilot is not installed or not in PATH." >&2
+  exit 1
+fi
+
+# Run github-copilot-cli directly with the selected model environment variables
+env COPILOT_HOME="${PROJECT_DIR}/.copilot" \
+    XDG_CACHE_HOME="${PROJECT_DIR}/.copilot/.cache" \
+    XDG_CONFIG_HOME="${PROJECT_DIR}/.copilot/.config" \
+    COPILOT_PROVIDER_BASE_URL=http://localhost:11434/v1 \
+    COPILOT_PROVIDER_TYPE=openai \
+    COPILOT_MODEL="${SELECTED_MODEL}" \
+    COPILOT_OFFLINE=true \
+    COPILOT_PROVIDER_API_KEY=ollama \
+    copilot "$@"
