@@ -59,11 +59,11 @@ All specifications and plans are stored under:
 
 ```text
 00-specs/
-ттт active/
-ттт archived/
+ active/
+ archived/
 ```
 
-The directory structure under `active/` and `archived/` mirrors the project structure.
+The directory structure under `active/` and `archived/` mirrors the project structure, so they will have subfolders for files which are in subfoldrs.
 
 Example:
 

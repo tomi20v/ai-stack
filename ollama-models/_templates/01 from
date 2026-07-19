@@ -1,0 +1,4 @@
+FROM #MODEL_NAME#
+
+PARAMETER temperature 0.1
+
