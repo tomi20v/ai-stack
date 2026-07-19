@@ -18,12 +18,8 @@ get_ollama_models() {
 
 select_model() {
   local choice=""
-
   if command -v fzf >/dev/null 2>&1; then
-    choice="$(
-      printf '%s\n' "${models[@]}" |
-        fzf --prompt='Select Copilot model: '
-    )"
+    choice="$(printf '%s\n' "${models[@]}" | fzf --prompt='Select Copilot model: ')"
   else
     echo "Available Copilot models:"
     printf '  %s\n' "${models[@]}"
@@ -39,12 +35,35 @@ select_model() {
     echo "Error: '$choice' is not among the available Copilot models." >&2
     exit 1
   fi
-
   SELECTED_MODEL="$choice"
 }
 
-get_ollama_models
+get_token_limits() {
+  local m="$1"
+  local p=32000
+  local o=4096
 
+  if [[ "$m" == *"64k"* ]]; then
+    p=60000; o=6144
+  elif [[ "$m" == *"10pad*" ]]; then # Wait, checking if 100k logic was broken above. Fixing now.
+    :
+  fi
+
+  # Clean implementation of the mapping
+  if [[ "$m" == *"64k"* ]]; then
+    p=60000; o=6144
+  elif [[ "$m" == *"100k"* ]]; then
+    p=100000; o=8192
+  elif [[ "$m" == *"128k"* ]]; then
+    p=120000; o=12288
+  elif [[ "$m" == *"256k"* ]]; then
+    p=240000; o=16384
+  fi
+
+  echo "$p $o"
+}
+
+get_ollama_models
 if [[ ${#models[@]} -eq 0 ]]; then
   echo "No Ollama models containing 'copilot' were found." >&2
   exit 1
@@ -52,13 +71,13 @@ fi
 
 select_model
 
-# Ensure github-copilot-cli is available on the host
+read -r PROMPT_LIMIT OUTPUT_LIMIT < <(get_token_limits "$SELECTED_MODEL")
+
 if ! command -v copilot >/dev/null 2>&1; then
   echo "Error: copilot is not installed or not in PATH." >&2
   exit 1
 fi
 
-# Run github-copilot-cli directly with the selected model environment variables
 env COPILOT_HOME="${PROJECT_DIR}/.copilot" \
     XDG_CACHE_HOME="${PROJECT_DIR}/.copilot/.cache" \
     XDG_CONFIG_HOME="${PROJECT_DIR}/.copilot/.config" \
@@ -66,5 +85,7 @@ env COPILOT_HOME="${PROJECT_DIR}/.copilot" \
     COPILOT_PROVIDER_TYPE=openai \
     COPILOT_MODEL="${SELECTED_MODEL}" \
     COPILOT_OFFLINE=true \
-    COPILOT_PROVIDER_API_KEY=ollama \
+    COPILOT_PROVIDER_API_KEY=****** \
+    COPILOT_PROVIDER_MAX_PROMPT_TOKENS="$PROMPT_LIMIT" \
+    COPILOT_PROVIDER_MAX_OUTPUT_TOKENS="$OUTPUT_LIMIT" \
     copilot "$@"
