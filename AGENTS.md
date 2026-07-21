@@ -1,133 +1,222 @@
-# AI Rules
+# AGENTS.md
 
-## Development Process
+# Rules
 
-Always follow this SDD workflow.
+- Never skip Specification or Plan.
+- Never modify unrelated code.
+- Never guess. Ask if something is ambiguous.
+- Implement exactly one vertical slice per session.
+- Stop after the current slice is accepted.
 
-### 1. Specification
+---
 
-Before writing code:
+# Repository Scope
 
-* Create a natural-language specification named `<target>.spec.md`.
-* Wait for user confirmation before continuing.
+Read only files that are directly relevant to the current task.
 
-### 2. Plan
+You may locate and read additional files only when they are needed to understand or modify the current target.
 
-After the specification is approved:
+A file is relevant when it is:
 
-* Create `<target>.plan.md`.
-* Split the work into numbered vertical slices:
+- directly referenced by the target file;
+- called, sourced, imported, included, or executed by the target file;
+- required to understand the failing behaviour;
+- required to implement or test the requested change.
 
-  * `1`, `2`, `3`, ...
-* Split every slice into small, independently implementable tasks:
+Do not explore files merely because they are nearby, similar, share a folder, or may contain examples.
 
-  * `1.1`, `1.2`, `2.1`, ...
-* Format every task as:
+Do not read unrelated templates, implementations, tests, or configuration files unless the current task depends on them.
 
-```text
-1.2 [ ] Task description
-```
+Before reading an additional file, identify the concrete dependency that makes it relevant.
 
-* Wait for user confirmation before continuing.
+If relevance is uncertain, ask before reading it.
 
-### 3. Implementation
+# Exploration Limit
 
-Implement **exactly one vertical slice** at a time.
-
-Within the current slice:
-
-1. Work through the tasks in order (`1.1`, `1.2`, `1.3`, ...).
-2. Before each task, briefly plan the implementation (do not save this plan).
-3. Implement only the current task.
-4. Mark the completed task in the plan:
-
-```text
-1.2 [*] Task description
-```
-
-After all tasks in the current slice are implemented:
-
-5. Test the entire slice.
-6. If it can be tested easily from the shell, perform the tests.
-7. Otherwise, explain exactly what the user should test.
-8. Wait for user confirmation that the slice is accepted.
-9. **Stop. Do not begin the next slice.**
-
-## SDD Files
-
-All specifications and plans are stored under:
-
-```text
-00-specs/
- active/
- archived/
-```
-
-The directory structure under `active/` and `archived/` mirrors the project structure, so they will have subfolders for files which are in subfoldrs.
+Follow dependencies outward from the current target only as far as required for the task.
 
 Example:
 
-```text
-some/fol/der.sh
+- If fixing how `a.sh` calls `b.sh`, read `a.sh` and `b.sh`.
+- Read files used by that call only if they affect the requested behaviour.
+- Do not inspect templates processed elsewhere by `a.sh` when they are unrelated to the call.
+
+# Workflow
+
+## 1. Specification
+
+Create:
+
+```
+00-specs/active/<path>.spec.md
 ```
 
-has:
+Rules:
 
-```text
-00-specs/active/some/fol/der.sh.spec.md
-00-specs/active/some/fol/der.sh.plan.md
+- One specification per source file.
+- The specification contains ONLY the requested changes.
+- If an archived specification exists, read it before writing the new specification.
+
+Wait for user approval.
+
+---
+
+## 2. Plan
+
+Create:
+
+```
+00-specs/active/<path>.plan.md
 ```
 
-### Specification lifecycle
+Format:
 
-While a feature is being implemented, both the specification and plan remain under `00-specs/active/`.
+```
+1 Slice name
 
-When the implementation is completed and accepted:
+1.1 [ ] Task
+1.2 [ ] Task
 
-* If no archived specification exists, move the specification to:
+2 Next slice
 
-```text
-00-specs/archived/some/fol/der.sh.spec.md
+2.1 [ ] Task
 ```
 
-* If an archived specification already exists, merge the completed specification into it in a meaningful way so that the archived specification represents the latest implemented behaviour. Remove duplicated or obsolete information where appropriate.
+Rules:
 
-### Plan lifecycle
+- Split work into vertical slices.
+- Split each slice into small sequential tasks.
+- One task = one checkbox.
 
-When implementation is completed and accepted:
+Wait for user approval.
 
-* Archive the completed plan under:
+---
 
-```text
-00-specs/archived/some/fol/
+## 3. Implementation
+
+Implement ONE vertical slice only.
+
+For each task:
+
+1. Briefly plan the implementation.
+2. Implement only that task.
+3. Mark the task complete.
+
+Example:
+
+```
+1.2 [*] Task description
 ```
 
-using the filename:
+After the whole slice:
 
-```text
-der.sh.plan-YYMMDD-01.md
+- Test it if practical.
+- Otherwise explain exactly what the user should test.
+- Wait for user acceptance.
+- Do NOT begin the next slice.
+
+---
+
+# Specification
+
+Repository:
+
+```
+00-specs/
+    active/
+    archived/
+    plans/
+```
+
+The directory structure mirrors the project.
+
+Example:
+
+```
+scripts/foo.sh
+```
+
+Files:
+
+```
+00-specs/active/scripts/foo.sh.spec.md
+00-specs/active/scripts/foo.sh.plan.md
+
+00-specs/archived/scripts/foo.sh.spec.md
+
+00-specs/archived/plans/scripts/foo.sh.plan-YYMMDD-NN.md
+```
+
+---
+
+# Archive Procedure
+
+After the user accepts the implemented slice:
+
+## 1. Update the plan
+
+- Every implemented task must be `[ * ]`.
+- No unfinished task may be `[ * ]`.
+
+## 2. Archive the specification
+
+If no archived specification exists:
+
+- Move the active specification to:
+
+```
+00-specs/archived/<path>.spec.md
+```
+
+Otherwise:
+
+- Merge the active specification into the archived specification.
+- Preserve all unchanged requirements.
+- Update only the implemented behaviour.
+- Remove duplicate or obsolete requirements.
+
+Delete the active specification afterwards.
+
+## 3. Archive the plan
+
+Rename:
+
+```
+<file>.plan.md
+```
+
+to
+
+```
+<file>.plan-YYMMDD-NN.md
 ```
 
 where:
 
-* `YYMMDD` is the archive date;
-* `01` is the first archived plan for that date;
-* additional plans archived on the same day use consecutive numbers (`02`, `03`, ...).
+- YYMMDD = archive date
+- NN = 01, 02, 03...
 
 Never overwrite an archived plan.
 
-## Rules
+Move it to:
 
-* Never skip the Specification or Plan phases.
-* Never work on more than one vertical slice in a single session.
-* Always complete tasks sequentially within the current slice.
-* Never begin the next slice automatically.
-* Always stop after a slice has been implemented and tested.
-* Keep tasks small enough to implement and review independently.
-* Do not mark a task complete until it has been implemented successfully.
-* If anything is ambiguous, ask instead of guessing.
-* Do not refactor or modify unrelated code.
-* Always maintain the mirrored directory structure under `00-specs/active/` and `00-specs/archived/`.
-* Never overwrite archived plans.
-* Keep the archived specification synchronized with the implemented behaviour after every completed change.
+```
+00-specs/plans/<path>/
+```
 
+Delete the active plan afterwards.
+
+---
+
+# Before Stopping
+
+Always perform this checklist in order:
+
+- [ ] Update completed task checkboxes.
+- [ ] Archive or update the specification.
+- [ ] Archive the plan.
+- [ ] Verify the archived plan filename uses `YYMMDD-NN`.
+- [ ] Verify no archived plan was overwritten.
+- [ ] Verify the active specification was removed.
+- [ ] Verify the active plan was removed.
+- [ ] Stop.
