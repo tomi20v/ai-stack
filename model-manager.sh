@@ -18,6 +18,35 @@ get_base_models() {
     echo "$all_models" | grep -vE '(-copilot|-claude|-[0-9]+k)'
 }
 
+# Function to find orphaned models (models in ollama but without local configuration)
+find_orphaned_models() {
+    local orphaned_models=()
+
+    # Get all models from ollama
+    local ollama_models
+    ollama_models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+
+    if [ -z "$ollama_models" ]; then
+        return
+    fi
+
+    # For each model in ollama, check if there's a local configuration
+    while IFS= read -r model; do
+        if [ -n "$model" ]; then
+            # Check if this model has a corresponding local Modelfile
+            local base_model=$(echo "$model" | sed 's/-.*$//')
+            local modelfile_path="${OLLAMA_MODELS_DIR}/${base_model}/Modelfile.${model}"
+
+            # If no local configuration exists, it's orphaned
+            if [ ! -f "$modelfile_path" ]; then
+                orphaned_models+=("$model")
+            fi
+        fi
+    done <<< "$ollama_models"
+
+    echo "${orphaned_models[@]}"
+}
+
 # Abstracted source for version prefixes.
 # Reads from ollama-models/_templates directory.
 # Each subdirectory in _templates is a group of prefixes.
@@ -106,6 +135,49 @@ select_from_list() {
     fi
 }
 
+# Function to delete all variants of a base model
+delete_all_variants() {
+    local base_model="$1"
+
+    echo "Deleting all variants for base model: $base_model"
+
+    # Get confirmation
+    echo -n "Are you sure you want to delete ALL variants for $base_model? (y/N): "
+    read -r confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Deletion cancelled."
+        return
+    fi
+
+    # Find and remove all local Modelfile.* files for this base model
+    local modelfile_dir="${OLLAMA_MODELS_DIR}/${base_model}"
+    if [ -d "$modelfile_dir" ]; then
+        echo "Removing local Modelfile configurations..."
+        rm -f "${modelfile_dir}/Modelfile."*
+    fi
+
+    # Get all models that start with this base model name from ollama
+    local ollama_models=($(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | grep "^${base_model}-"))
+
+    if [ ${#ollama_models[@]} -gt 0 ]; then
+        echo "Removing models from Ollama..."
+        for model in "${ollama_models[@]}"; do
+            echo "Removing: $model"
+            ollama rm "$model" 2>/dev/null || true
+        done
+    fi
+
+    # Also remove the base model itself if it exists
+    local base_model_full="${base_model}"
+    local base_model_exists=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | grep "^${base_model_full}$")
+    if [ -n "$base_model_exists" ]; then
+        echo "Removing base model: $base_model_full"
+        ollama rm "$base_model_full" 2>/dev/null || true
+    fi
+
+    echo "All variants for $base_model have been deleted."
+}
+
 # Function to display the versions view
 display_versions_view() {
     local base_model="$1"
@@ -129,8 +201,45 @@ display_versions_view() {
         fi
     done
 
+    # Add deletion option to the list for existing versions
+    local final_display=()
+    for item in "${display_versions[@]}"; do
+        if [[ "$item" == *" [v]" ]]; then
+            # This is an existing version, add delete option
+            final_display+=("${item} (d)elete")
+        else
+            # This is a new version, no delete option
+            final_display+=("$item")
+        fi
+    done
+
     # Use the generic selection function
-    select_from_list "Select Model Version" "${display_versions[@]}"
+    local selected=$(select_from_list "Select Model Version" "${final_display[@]}")
+
+    # Check if deletion was requested
+    if [[ "$selected" == *" (d)elete"* ]]; then
+        # Extract version name without the delete hint
+        local version_name="${selected% (d)elete}"
+        version_name="${version_name% [v]}"
+
+        # Remove the Modelfile
+        local modelfile_path="${OLLAMA_MODELS_DIR}/${base_model}/Modelfile.${version_name}"
+        if [ -f "$modelfile_path" ]; then
+            rm -f "$modelfile_path"
+            echo "Deleted local Modelfile: $modelfile_path"
+        fi
+
+        # Remove from ollama
+        echo "Removing model from Ollama: $version_name"
+        ollama rm "$version_name" 2>/dev/null || true
+
+        echo "Deleted variant $version_name for base model $base_model."
+
+        # Return empty to indicate deletion was handled
+        echo ""
+    else
+        echo "$selected"
+    fi
 }
 
 # Main execution flow
@@ -141,6 +250,27 @@ main() {
         exit 1
     fi
 
+    # Check for orphaned models first
+    local orphaned_models=($(find_orphaned_models))
+    if [ ${#orphaned_models[@]} -gt 0 ]; then
+        echo "----------------------------------------------------"
+        echo "WARNING: Found orphaned models (models in Ollama but without local configuration):"
+        echo "${orphaned_models[*]}"
+        echo "----------------------------------------------------"
+        echo -n "Do you want to remove these orphaned models? (y/N): "
+        read -r confirm
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            for model in "${orphaned_models[@]}"; do
+                echo "Removing orphaned model: $model"
+                ollama rm "$model" 2>/dev/null || true
+            done
+            echo "Orphaned models removed successfully."
+        else
+            echo "Skipping orphaned model cleanup."
+        fi
+        echo ""
+    fi
+
     # Retrieve models
     local base_models=($(get_base_models))
 
@@ -149,6 +279,13 @@ main() {
         exit 0
     fi
 
+    # Add delete option to each base model for the main menu
+    local final_base_models=()
+    for base in "${base_models[@]}"; do
+        final_base_models+=("$base")
+        final_base_models+=("${base} (delete all)")
+    done
+
     while true; do
         # Step 1: Select Base Model
         local selected_base=$(select_from_list "Select Base Model" "${base_models[@]}")
@@ -156,6 +293,13 @@ main() {
         if [ -z "$selected_base" ]; then
             echo "No base model selected. Exiting..."
             break
+        fi
+
+        # Check if this is a deletion request (special case)
+        if [[ "$selected_base" == *" (delete all)" ]]; then
+            local base_model_name="${selected_base% (delete all)}"
+            delete_all_variants "$base_model_name"
+            continue
         fi
 
         echo ""
@@ -186,6 +330,7 @@ main() {
             echo "----------------------------------------------------"
             echo "FINAL SELECTION: $selected_version"
             echo "----------------------------------------------------"
+            echo "Modelfile $selected_version created successfully for base model $selected_base."
             # After successful creation, return to main menu
             continue
         else
