@@ -1,2 +1,9 @@
 # Ignore model tracking files
 *.last_model
+.claude
+.claude.json
+.config
+.copilot
+.local
+.npm
+

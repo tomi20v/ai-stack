@@ -81,7 +81,7 @@ fi
 env COPILOT_HOME="${PROJECT_DIR}/.copilot" \
     XDG_CACHE_HOME="${PROJECT_DIR}/.copilot/.cache" \
     XDG_CONFIG_HOME="${PROJECT_DIR}/.copilot/.config" \
-    COPILOT_PROVIDER_BASE_URL=http://localhost:11434/v1 \
+    COPILOT_PROVIDER_BASE_URL=http://localhost:11435/v1 \
     COPILOT_PROVIDER_TYPE=openai \
     COPILOT_MODEL="${SELECTED_MODEL}" \
     COPILOT_OFFLINE=true \
