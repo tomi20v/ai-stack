@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_DIR="$(pwd)"
+
+get_ollama_models() {
+  if ! command -v ollama >/dev/null 2>&1; then
+    echo "Error: ollama is not installed or not in PATH." >&2
+    exit 1
+  fi
+
+  # 1a. Filter for models containing "-gemini"
+  mapfile -t models < <(
+    ollama list |
+      awk 'NR > 1 && tolower($1) ~ /-gemini/ {print $1}' |
+      sort -u
+  )
+}
+
+select_model() {
+  local choice=""
+
+  if command -v fzf >/dev/null 2>&1; then
+    choice="$(
+      printf '%s\n' "${models[@]}" |
+        fzf --prompt='Select Gemini model: '
+    )"
+  else
+    echo "Available Gemini models:"
+    printf '  %s\n' "${models[@]}"
+    read -rp "Enter model name: " choice
+  fi
+
+  if [[ -z "$choice" ]]; then
+    echo "Error: no model selected." >&2
+    exit 1
+  fi
+
+  if ! printf '%s\n' "${models[@]}" | grep -Fxq -- "$choice"; then
+    echo "Error: '$choice' is not among the available Gemini models." >&2
+    exit 1
+  fi
+
+  SELECTED_MODEL="$choice"
+}
+
+get_ollama_models
+
+if [[ ${#models[@]} -eq 0 ]]; then
+  echo "No Ollama models containing '-gemini' were found." >&2
+  exit 1
+fi
+
+select_model
+
+# 1b. Ensure gemini-cli is available on the host
+if ! command -v gemini >/dev/null 2>&1; then
+  echo "Error: gemini is not installed or not in PATH." >&2
+  exit 1
+fi
+
+# 1c. Run gemini directly with the selected model and environment variables
+env GOOGLE_GEMINI_BASE_URL="http://localhost:11435" \
+    GEMINI_API_KEY="ollama" \
+#    GEMINI_MODEL="${SELECTED_MODEL}" \
+    GEMINI_MODEL="gemma4:26b" \
+    gemini "$@"
