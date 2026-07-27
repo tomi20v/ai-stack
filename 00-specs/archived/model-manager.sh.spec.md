@@ -60,5 +60,12 @@ Change line 194 to:
 3. Verify Modelfile is created with proper content in the expected location
 4. Confirm no syntax errors occur during execution
 
-## Implementation Scope
-This specification covers only the bug fix for incorrect script execution - no new features or functionality changes.
+## Orphaned Model Cleanup
+
+On startup, `model-manager.sh` offers to clean up orphaned models (models in Ollama but without local Modelfiles). The cleanup should exclude base models (models without template pieces in their names).
+
+### Technical Requirements
+- Identify base models by checking if the model name contains a template piece (e.g., -copilot, -claude, etc.)
+- Only remove orphaned models that have template pieces in their names
+- Preserve base models during cleanup
+- If there are no orphaned models, print a message and wait for Enter to continue

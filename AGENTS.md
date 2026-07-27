@@ -170,8 +170,9 @@ If no archived specification exists:
 
 Otherwise:
 
-- Merge the active specification into the archived specification.
-- Preserve all unchanged requirements.
+- Do NOT overwrite the archived specification.
+- Instead, append the active specification's new requirements to the archived specification.
+- Preserve all unchanged requirements from the archived spec.
 - Update only the implemented behaviour.
 - Remove duplicate or obsolete requirements.
 
@@ -201,7 +202,7 @@ Never overwrite an archived plan.
 Move it to:
 
 ```
-00-specs/plans/<path>/
+00-specs/archived/plans/<path>/
 ```
 
 Delete the active plan afterwards.
@@ -219,4 +220,5 @@ Always perform this checklist in order:
 - [ ] Verify no archived plan was overwritten.
 - [ ] Verify the active specification was removed.
 - [ ] Verify the active plan was removed.
+- [ ] Verify the active directory is empty.
 - [ ] Stop.

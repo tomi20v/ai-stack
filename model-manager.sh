@@ -18,6 +18,31 @@ get_base_models() {
     echo "$all_models" | grep -vE '(-copilot|-claude|-[0-9]+k)'
 }
 
+# Function to check if a model is a base model by checking template files
+is_base_model() {
+    local model="$1"
+    local templates_dir="${SCRIPT_DIR}/ollama-models/_templates"
+
+    # If templates directory doesn't exist, treat as base model
+    if [ ! -d "$templates_dir" ]; then
+        return 0
+    fi
+
+    # Loop through all template files
+    while IFS= read -r template_file; do
+        # Extract just the filename from the path
+        local filename=$(basename "$template_file")
+        # Check if model contains this filename
+        if [[ "$model" == *"$filename"* ]]; then
+            # Match found - this is a custom model, not a base model
+            return 1
+        fi
+    done < <(find "$templates_dir" -type f -name "*")
+
+    # No match found - this is a base model
+    return 0
+}
+
 # Function to find orphaned models (models in ollama but without local configuration)
 find_orphaned_models() {
     local orphaned_models=()
@@ -33,8 +58,27 @@ find_orphaned_models() {
     # For each model in ollama, check if there's a local configuration
     while IFS= read -r model; do
         if [ -n "$model" ]; then
+            # Check if this is a base model (should not be cleaned up)
+            if is_base_model "$model"; then
+                continue
+            fi
+
             # Check if this model has a corresponding local Modelfile
-            local base_model=$(echo "$model" | sed 's/-.*$//')
+            # Find the shortest matching model name in ollama that is a prefix of the current model
+            local base_model=""
+            local shortest_match=""
+            while IFS= read -r candidate; do
+                if [[ "$model" == "$candidate"* ]]; then
+                    if [ -z "$shortest_match" ] || [ ${#candidate} -lt ${#shortest_match} ]; then
+                        shortest_match="$candidate"
+                    fi
+                fi
+            done <<< "$ollama_models"
+
+            if [ -n "$shortest_match" ]; then
+                base_model="$shortest_match"
+            fi
+
             local modelfile_path="${OLLAMA_MODELS_DIR}/${base_model}/Modelfile.${model}"
 
             # If no local configuration exists, it's orphaned
@@ -214,7 +258,8 @@ display_versions_view() {
     done
 
     # Use the generic selection function
-    local selected=$(select_from_list "Select Model Version" "${final_display[@]}")
+    local selected=$(select_from_list "Select Model Version (ESC to return)" "${final_display[@]}")
+
 
     # Check if deletion was requested
     if [[ "$selected" == *" (d)elete"* ]]; then
@@ -268,6 +313,11 @@ main() {
         else
             echo "Skipping orphaned model cleanup."
         fi
+        echo ""
+    else
+        echo "No orphaned models found."
+        echo "Press Enter to continue..."
+        read -r
         echo ""
     fi
 
@@ -325,13 +375,21 @@ main() {
 
             # Call the template assembly script
             echo "Generating Modelfile for $selected_version..."
-            "${SCRIPT_DIR}/ollama-models/template.sh" "$selected_base" "$selected_version"
-
-            echo "----------------------------------------------------"
-            echo "FINAL SELECTION: $selected_version"
-            echo "----------------------------------------------------"
-            echo "Modelfile $selected_version created successfully for base model $selected_base."
-            # After successful creation, return to main menu
+            if "${SCRIPT_DIR}/ollama-models/template.sh" "$selected_base" "$selected_version"; then
+                echo "----------------------------------------------------"
+                echo "FINAL SELECTION: $selected_version"
+                echo "----------------------------------------------------"
+                echo "Modelfile $selected_version created successfully for base model $selected_base."
+                echo ""
+                read -p "Press Enter to continue..."
+            else
+                echo "----------------------------------------------------"
+                echo "ERROR: Failed to generate Modelfule for $selected_version."
+                echo "----------------------------------------------------"
+                echo ""
+                read -p "Press Enter to continue..."
+            fi
+            # After attempt, return to main menu
             continue
         else
             # If selected_version was empty, it means we broke out of the version selection (ESC pressed)
