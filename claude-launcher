@@ -3,6 +3,26 @@ set -euo pipefail
 
 PROJECT_DIR="$(pwd)"
 
+# Parse command line arguments
+MODEL_NAME=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --model)
+      MODEL_NAME="$2"
+      shift 2
+      ;;
+    -*)
+      echo "Error: Unknown option: $1" >&2
+      exit 1
+      ;;
+    *)
+      # Positional argument - treat as model name
+      MODEL_NAME="$1"
+      shift
+      ;;
+  esac
+done
+
 get_ollama_models() {
   if ! command -v ollama >/dev/null 2>&1; then
     echo "Error: ollama is not installed or not in PATH." >&2
@@ -43,14 +63,40 @@ select_model() {
   SELECTED_MODEL="$choice"
 }
 
-get_ollama_models
+# Use model name from command line if provided, otherwise select interactively
+if [[ -n "$MODEL_NAME" ]]; then
+  echo "Using model from command line: $MODEL_NAME"
+  SELECTED_MODEL="$MODEL_NAME"
+else
+  get_ollama_models
 
-if [[ ${#models[@]} -eq 0 ]]; then
-  echo "No Ollama models containing 'claude' were found." >&2
-  exit 1
+  if [[ ${#models[@]} -eq 0 ]]; then
+    echo "No Ollama models containing 'claude' were found." >&2
+    exit 1
+  fi
+
+  select_model
 fi
 
-select_model
+# Validate model exists in Ollama
+validate_model() {
+  if ! command -v ollama >/dev/null 2>&1; then
+    echo "Error: ollama is not installed or not in PATH." >&2
+    exit 1
+  fi
+
+  local available_models
+  mapfile -t available_models < <(ollama list | awk 'NR > 1 {print $1}')
+
+  if ! printf '%s\n' "${available_models[@]}" | grep -Fxq -- "$SELECTED_MODEL"; then
+    echo "Error: Model '$SELECTED_MODEL' not found in Ollama." >&2
+    echo "Available models:" >&2
+    printf '  %s\n' "${available_models[@]}" >&2
+    exit 1
+  fi
+}
+
+validate_model
 
 # Ensure claude-code is available on the host
 if ! command -v claude >/dev/null 2>&1; then
