@@ -4,9 +4,14 @@ set -euo pipefail
 PROJECT_DIR="$(pwd)"
 
 # Parse command line arguments
+DRY_RUN=false
 MODEL_NAME=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
     --model)
       MODEL_NAME="$2"
       shift 2
@@ -104,12 +109,18 @@ if ! command -v claude >/dev/null 2>&1; then
   exit 1
 fi
 
-# Run claude-code directly with the selected model environment variables
-#env ANTHROPIC_BASE_URL=http://localhost:11434 \
-env ANTHROPIC_BASE_URL=http://localhost:11435 \
+# Build the command as a single source of truth
+CMD="env ANTHROPIC_BASE_URL=http://localhost:11435 \
     ANTHROPIC_AUTH_TOKEN=ollama \
-    ANTHROPIC_API_KEY="" \
-    ANTHROPIC_DEFAULT_HAIKU_MODEL="${SELECTED_MODEL}" \
-    ANTHROPIC_DEFAULT_SONNET_MODEL="${SELECTED_MODEL}" \
-    ANTHROPIC_DEFAULT_OPUS_MODEL="${SELECTED_MODEL}" \
-    claude "$@"
+    ANTHROPIC_API_KEY= \
+    ANTHROPIC_DEFAULT_HAIKU_MODEL=\"${SELECTED_MODEL}\" \
+    ANTHROPIC_DEFAULT_SONNET_MODEL=\"${SELECTED_MODEL}\" \
+    ANTHROPIC_DEFAULT_OPUS_MODEL=\"${SELECTED_MODEL}\" \
+    claude \"$@\""
+
+# Print command if dry-run, otherwise execute it
+if [[ "$DRY_RUN" == true ]]; then
+  echo "$CMD"
+else
+  eval "$CMD"
+fi

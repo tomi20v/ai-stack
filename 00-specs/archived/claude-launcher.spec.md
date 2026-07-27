@@ -53,3 +53,7 @@ The script sets these environment variables when launching Claude Code:
 - Ollama must be installed and running
 - Claude Code must be installed and available in PATH
 - Model must exist in Ollama's model list
+
+### --dry-run Feature
+
+The script shall have a `--dry-run` command line argument. When used, it shall print the command that would be executed without actually running it.
