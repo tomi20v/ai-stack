@@ -8,7 +8,7 @@ docker run --rm -it \
   mitmproxy/mitmproxy \
   mitmweb \
     --mode reverse:http://127.0.0.1:11434 \
-    --listen-host 127.0.0.1 \
+    --listen-host 0.0.0.0 \
     --listen-port 11435 \
     --web-host 0.0.0.0 \
     --web-port 8081 \
