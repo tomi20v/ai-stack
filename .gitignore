@@ -7,3 +7,7 @@
 .local
 .npm
 
+# Keep README.md in hold folder, ignore everything else
+00-specs/hold/*
+!00-specs/hold/README.md
+
