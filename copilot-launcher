@@ -78,10 +78,13 @@ if ! command -v copilot >/dev/null 2>&1; then
   exit 1
 fi
 
-env COPILOT_HOME="${PROJECT_DIR}/.copilot" \
-    XDG_CACHE_HOME="${PROJECT_DIR}/.copilot/.cache" \
-    XDG_CONFIG_HOME="${PROJECT_DIR}/.copilot/.config" \
-    COPILOT_PROVIDER_BASE_URL=http://localhost:11435/v1 \
+#    XDG_CACHE_HOME="${PROJECT_DIR}/.copilot/.cache" \
+#    XDG_CONFIG_HOME="${PROJECT_DIR}/.copilot/.config" \
+#    COPILOT_HOME="${PROJECT_DIR}/.copilot" \
+
+
+# @TODO copilot_home shouldn't be inside current folder, it could be under ~/.local/.copilot/folder/to/pwd/from/home or  ~/.local/folder/to/pwd/from/home/.copilot
+env COPILOT_PROVIDER_BASE_URL=http://localhost:11435/v1 \
     COPILOT_PROVIDER_TYPE=openai \
     COPILOT_MODEL="${SELECTED_MODEL}" \
     COPILOT_OFFLINE=true \
