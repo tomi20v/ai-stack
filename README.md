@@ -11,19 +11,6 @@ This repository contains the configuration and infrastructure for a specialized 
 - **GPU:** NVIDIA RTX 5060 Ti (16 GB)
 - **Compute:** Docker with NVIDIA GPU passthrough enabled.
 
-## 🐳 Docker & GPU
-
-- **Docker Compose** is installed and works.
-- **GPU passthrough** verified with:
-```bash
-docker run --rm --gpus all nvidia/cuda:13.0.0-base-ubuntu24.04 nvidia-smi
-```
-- Useful checks:
-```bash
-docker ps
-docker ps -a
-```
-
 ## ⚙️ Ollama Service & API Checks
 
 Ollama runs directly on the host for maximum performance and accessibility.
@@ -33,11 +20,15 @@ Ollama runs directly on the host for maximum performance and accessibility.
 - **Running models**: `ollama ps`
 - **Model storage**: `/usr/share/ollama/.ollama`
 
+### Proxy & Traffic Inspection
+
+- **Ollama Proxy**: Run `ollama-proxy.sh` to start mitmproxy in reverse mode, exposing inspector at http://127.0.0.1:8081 for inspecting Ollama traffic
+
 ## 🤖 LLM Orchestration
 
 ### Ollama (Host-based)
 - **API Endpoint:** `http://localhost:11434`
-- **Key Models**:
+- **Example Models**:
   - Custom gpt-oss 20b variants
   - Custom gpt-oss 120b variants
 
@@ -47,24 +38,39 @@ Custom `Modelfiles` are used to optimize models for specific roles:
 
 ## 🛠️ Tools & Containers
 
-### Claude Code Agent
-Claude Code runs within a specialized, lightweight Docker container to ensure environment isolation and workspace portability.
+### Model Management
+- **Model Manager**: `model-manager.sh` - Interactive interface for selecting and building Ollama models with templates; supports base model selection, version generation, and token limit configuration (64k/100k/128k/256k context windows)
 
-- **Docker Image:** `claude-code`
-- **Dockerfile Source:** `~/ai-stack/docker/claude/Dockerfile.claude`
-- **Configuration Persistence:** Managed via the `claude-code-config` Docker volume (mounted to `/root/.claude` inside the container).
-- **Workspace Mounting:** The current host directory is mounted as `/workspace` within the container. This allows the agent to interact with local files seamlessly. When you run `claude` from a project directory, that directory's contents are visible inside the container at `/workspace`.
+### Shell Utilities
+- **Model List**: `ollama-ls.sh` - List Ollama models
+- **Temperature Monitor**: `temps.sh` - System temperature monitoring
+- **Build Models**: `ollama-models/build_models.sh` - Build Ollama model variants
+
+### Agent Launchers
+- **Copilot Launcher**: `copilot-launcher` - Supports model selection on start
+- **Claude Launcher**: `claude-launcher` - Supports model selection
+- ** Gemini Launcher**: 'gemini-launcher' - the same here
+
+### Claude Code Agent
+- Previously I've been running claude and copilot inside docker but dropped that. Files are still in `docker` folder
+
+## 🤖 AI Agent Workflow
+
+This repository uses the `AGENTS.md` file for the SDD (Software Design Document) workflow, including delta specifications, plan creation, implementation with vertical slicing, and archival procedures.
 
 ## 🚀 Quick Start
 
 1. **Build & Run Custom Models**
-   Use `model-manager.sh` to build ollama model variants. Only those built with this utility will show up in my launchers
-2. **Run Agent**
-   Navigate to any project directory and run `claude-host-launcher`.
-3. If you want to run claude (or copilot) in screen, use `screen -U` for unicode terminal support
+   Use `model-manager.sh` to select and build Ollama model variants with different context window sizes (64k, 100k, 128k, 256k)
+2. **Run Claude Agent**
+   Navigate to any project directory and run `claude-launcher`.
+3. **Run Copilot Agent**
+   Use `copilot-host-launcher` with dynamic token limits based on model context window
+4. If you want to run claude (or copilot) in screen, use `screen -U` for unicode terminal support
 
 ## 📈 Monitoring
 
+- **Ollama Logs**: Follow Ollama service logs with `ollama-journald.sh` (runs `journalctl -u ollama --no-hostname -f`)
 - GPU/CPU temperature monitoring scripts available in the repository
 - Scripts for tracking system performance during LLM inference sessions
 

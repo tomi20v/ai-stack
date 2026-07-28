@@ -162,7 +162,9 @@ After the user accepts the implemented slice:
 
 If no archived specification exists:
 
-- Move the active specification to:
+- If it is a new component eg script, and the specification is durable, move it
+- If it is a delta specification, then convert it to durable specification
+- Move or rewrite the active specification to:
 
 ```
 00-specs/archived/<path>.spec.md
