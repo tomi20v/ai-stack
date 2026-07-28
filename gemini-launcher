@@ -60,7 +60,7 @@ if ! command -v gemini >/dev/null 2>&1; then
 fi
 
 # 1c. Run gemini directly with the selected model and environment variables
-env GOOGLE_GEMINI_BASE_URL="http://localhost:11435" \
+env GOOGLE_GEMINI_BASE_URL="http://localhost:11434" \
     GEMINI_API_KEY="ollama" \
 #    GEMINI_MODEL="${SELECTED_MODEL}" \
     GEMINI_MODEL="gemma4:26b" \
