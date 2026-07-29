@@ -28,59 +28,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-get_ollama_models() {
-  if ! command -v ollama >/dev/null 2>&1; then
-    echo "Error: ollama is not installed or not in PATH." >&2
-    exit 1
-  fi
+# Source model-selection.sh with "claude" filter keyword
+source model-selection.sh "claude"
 
-  mapfile -t models < <(
-    ollama list |
-      awk 'NR > 1 && tolower($1) ~ /claude/ {print $1}' |
-      sort -u
-  )
-}
-
-select_model() {
-  local choice=""
-
-  if command -v fzf >/dev/null 2>&1; then
-    choice="$(
-      printf '%s\n' "${models[@]}" |
-        fzf --prompt='Select Claude model: '
-    )"
-  else
-    echo "Available Claude models:"
-    printf '  %s\n' "${models[@]}"
-    read -rp "Enter model name: " choice
-  fi
-
-  if [[ -z "$choice" ]]; then
-    echo "Error: no model selected." >&2
-    exit 1
-  fi
-
-  if ! printf '%s\n' "${models[@]}" | grep -Fxq -- "$choice"; then
-    echo "Error: '$choice' is not among the available Claude models." >&2
-    exit 1
-  fi
-
-  SELECTED_MODEL="$choice"
-}
-
-# Use model name from command line if provided, otherwise select interactively
+# Use model name from command line if provided, otherwise use selected model
 if [[ -n "$MODEL_NAME" ]]; then
   echo "Using model from command line: $MODEL_NAME"
   SELECTED_MODEL="$MODEL_NAME"
-else
-  get_ollama_models
-
-  if [[ ${#models[@]} -eq 0 ]]; then
-    echo "No Ollama models containing 'claude' were found." >&2
-    exit 1
-  fi
-
-  select_model
 fi
 
 # Validate model exists in Ollama

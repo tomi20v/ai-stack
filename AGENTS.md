@@ -1,6 +1,10 @@
 # AGENTS.md
 
-# Rules
+# General rules
+
+- All files should end with a newline character. No need to fix existing files but keep to this rule when creating or editing the end of a file.
+
+# Rules of workflow
 
 - Never skip Specification or Plan.
 - Never modify unrelated code.
@@ -207,7 +211,7 @@ Move it to:
 00-specs/archived/plans/<path>/
 ```
 
-Delete the active plan afterwards.
+Never remove the 00specs/active folder even if empty
 
 ---
 

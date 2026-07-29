@@ -3,40 +3,8 @@ set -euo pipefail
 
 PROJECT_DIR="$(pwd)"
 
-get_ollama_models() {
-  if ! command -v ollama >/dev/null 2>&1; then
-    echo "Error: ollama is not installed or not in PATH." >&2
-    exit 1
-  fi
-
-  mapfile -t models < <(
-    ollama list |
-      awk 'NR > 1 && tolower($1) ~ /copilot/ {print $1}' |
-      sort -u
-  )
-}
-
-select_model() {
-  local choice=""
-  if command -v fzf >/dev/null 2>&1; then
-    choice="$(printf '%s\n' "${models[@]}" | fzf --prompt='Select Copilot model: ')"
-  else
-    echo "Available Copilot models:"
-    printf '  %s\n' "${models[@]}"
-    read -rp "Enter model name: " choice
-  fi
-
-  if [[ -z "$choice" ]]; then
-    echo "Error: no model selected." >&2
-    exit 1
-  fi
-
-  if ! printf '%s\n' "${models[@]}" | grep -Fxq -- "$choice"; then
-    echo "Error: '$choice' is not among the available Copilot models." >&2
-    exit 1
-  fi
-  SELECTED_MODEL="$choice"
-}
+# Source model-selection.sh with "copilot" filter keyword
+source model-selection.sh "copilot"
 
 get_token_limits() {
   local m="$1"
@@ -62,14 +30,6 @@ get_token_limits() {
 
   echo "$p $o"
 }
-
-get_ollama_models
-if [[ ${#models[@]} -eq 0 ]]; then
-  echo "No Ollama models containing 'copilot' were found." >&2
-  exit 1
-fi
-
-select_model
 
 read -r PROMPT_LIMIT OUTPUT_LIMIT < <(get_token_limits "$SELECTED_MODEL")
 
