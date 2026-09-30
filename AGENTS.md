@@ -135,7 +135,7 @@ Repository:
 00-specs/
     active/
     archived/
-        plans/
+        00-plans/
 ```
 
 The directory structure mirrors the project.
@@ -154,7 +154,7 @@ Files:
 
 00-specs/archived/scripts/foo.sh.spec.md
 
-00-specs/archived/plans/scripts/foo.sh/foo.sh.plan-YYMMDD-NN.md
+00-specs/archived/00-plans/scripts/foo.sh/foo.sh.plan-YYMMDD-NN.md
 ```
 
 ---
@@ -216,7 +216,7 @@ Never overwrite an archived plan.
 Move it to:
 
 ```
-00-specs/archived/plans/<path>/
+00-specs/archived/00-plans/<path>/
 ```
 
 Never remove the 00-specs/active folder even if empty
