@@ -4,6 +4,8 @@
 
 - All files should end with a newline character. No need to fix existing files but keep to this rule when creating or editing the end of a file.
 
+---
+
 # Rules of workflow
 
 - Never skip Specification or Plan.
@@ -35,6 +37,8 @@ Before reading an additional file, identify the concrete dependency that makes i
 
 If relevance is uncertain, ask before reading it.
 
+---
+
 # Exploration Limit
 
 Follow dependencies outward from the current target only as far as required for the task.
@@ -44,6 +48,8 @@ Example:
 - If fixing how `a.sh` calls `b.sh`, read `a.sh` and `b.sh`.
 - Read files used by that call only if they affect the requested behaviour.
 - Do not inspect templates processed elsewhere by `a.sh` when they are unrelated to the call.
+
+---
 
 # Workflow
 
@@ -129,7 +135,7 @@ Repository:
 00-specs/
     active/
     archived/
-    plans/
+        plans/
 ```
 
 The directory structure mirrors the project.
@@ -148,7 +154,7 @@ Files:
 
 00-specs/archived/scripts/foo.sh.spec.md
 
-00-specs/archived/plans/scripts/foo.sh.plan-YYMMDD-NN.md
+00-specs/archived/plans/scripts/foo.sh/foo.sh.plan-YYMMDD-NN.md
 ```
 
 ---
@@ -159,8 +165,8 @@ After the user accepts the implemented slice:
 
 ## 1. Update the plan
 
-- Every implemented task must be `[ * ]`.
-- No unfinished task may be `[ * ]`.
+- Every implemented task must be `[*]`.
+- No unfinished task may be `[*]`.
 
 ## 2. Archive the specification
 
@@ -189,17 +195,19 @@ Delete the active specification afterwards.
 Rename:
 
 ```
-<file>.plan.md
+<filename>.plan.md
 ```
 
 to
 
 ```
-<file>.plan-YYMMDD-NN.md
+<filename>.plan-YYMMDD-NN.md
 ```
 
 where:
 
+- `<path>` = relative path of the target source file (e.g. `scripts/foo.sh`)
+- `<filename>` = basename of the target source file (e.g. `foo.sh`)
 - YYMMDD = archive date
 - NN = 01, 02, 03...
 
@@ -211,7 +219,7 @@ Move it to:
 00-specs/archived/plans/<path>/
 ```
 
-Never remove the 00specs/active folder even if empty
+Never remove the 00-specs/active folder even if empty
 
 ---
 
